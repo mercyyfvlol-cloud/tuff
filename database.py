@@ -259,6 +259,12 @@ def _create_tables(conn):
             disabled_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS log_channel (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            channel_id INTEGER
+        )
+    """)
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ship_overrides (
@@ -935,3 +941,22 @@ def get_disabled_commands() -> list[str]:
     with get_conn() as conn:
         rows = conn.execute("SELECT command_name FROM disabled_commands ORDER BY command_name").fetchall()
         return [row["command_name"] for row in rows]
+
+
+# ---------- Log channel ----------
+# Single global value (this bot runs on one server), settable via
+# /logssetup instead of a hardcoded constant -- so switching servers or
+# recreating the channel doesn't mean quietly-broken logging again.
+
+def set_log_channel(channel_id: int):
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO log_channel (id, channel_id) VALUES (1, ?)
+            ON CONFLICT(id) DO UPDATE SET channel_id = excluded.channel_id
+        """, (channel_id,))
+
+
+def get_log_channel() -> int | None:
+    with get_conn() as conn:
+        row = conn.execute("SELECT channel_id FROM log_channel WHERE id = 1").fetchone()
+        return row["channel_id"] if row else None
