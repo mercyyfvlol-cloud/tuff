@@ -23,16 +23,20 @@ def heart_bar(pct: float, length: int = 14) -> str:
     return "❤️" * filled + "🤍" * (length - filled)
 
 
+VERDICT_TIERS = [
+    (90, ["Soulmates 💍", "Written in the stars ✨", "Endgame 💍", "Two halves of one whole 💫"]),
+    (70, ["Strong match 💕", "This could really go somewhere 💕", "Certified cute 🥰", "Definitely a vibe 💕"]),
+    (40, ["Could go either way 🤷", "Jury's still out 🤔", "50/50 energy 🤷", "Mid, but not impossible 😅"]),
+    (15, ["...rough 💔", "Yikes, but not zero 😬", "Might need a miracle 💔", "Not looking great, chief 😅"]),
+    (0, ["Please don't 🚫", "Absolutely not 🚫", "Run 🏃", "The universe says no 🚫"]),
+]
+
+
 def verdict_for(pct: float) -> str:
-    if pct >= 90:
-        return "Soulmates 💍"
-    if pct >= 70:
-        return "Strong match 💕"
-    if pct >= 40:
-        return "Could go either way 🤷"
-    if pct >= 15:
-        return "...rough 💔"
-    return "Please don't 🚫"
+    for threshold, options in VERDICT_TIERS:
+        if pct >= threshold:
+            return random.choice(options)
+    return random.choice(VERDICT_TIERS[-1][1])  # unreachable in practice (threshold 0 always matches), kept as a safe fallback
 
 
 class Fun(commands.Cog):
