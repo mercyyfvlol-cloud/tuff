@@ -60,7 +60,9 @@ def can_moderate(actor: discord.Member, target: discord.Member) -> bool:
 
 
 def mod_embed(title: str, description: str, color=discord.Color.orange()) -> discord.Embed:
-    return discord.Embed(title=title, description=description, color=color, timestamp=discord.utils.utcnow())
+    embed = discord.Embed(title=title, description=description, color=color, timestamp=discord.utils.utcnow())
+    embed.set_footer(text="Made by Mercyy")
+    return embed
 
 
 def warning_dm_embed(guild: discord.Guild, moderator, reason: str, warning_id: int) -> discord.Embed:
