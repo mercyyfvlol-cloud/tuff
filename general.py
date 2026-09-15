@@ -74,6 +74,7 @@ HELP_SECTIONS = {
         "/timeout <member> <minutes|permanent>, /untimeout — permanent auto-renews every 28 days (Discord's own hard cap per timeout) until removed",
         "/purge <amount, max 1000>, /slowmode <seconds>",
         "/lock [channel] [reason], /unlock [channel] — stop/allow regular members sending messages (defaults to the current channel)",
+        "/logssetup <#channel> — [admin] set where mod actions and other bot logs get posted",
         "Mod actions are logged to the logs channel instead of posting in chat",
     ],
     "🛡️ AutoMod": [
