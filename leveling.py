@@ -104,6 +104,17 @@ class ConfirmResetView(discord.ui.View):
         self.stop()
 
 
+LEVEL_UP_FLAVOR = [
+    "You're on a roll!",
+    "Look at you go!",
+    "Onward and upward!",
+    "Grinding pays off!",
+    "Keep that momentum!",
+    "Certified server regular!",
+    "The numbers don't lie!",
+]
+
+
 class Leveling(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -148,14 +159,11 @@ class Leveling(commands.Cog):
                     pass
 
         embed = discord.Embed(
-            title="Level up",
-            description=(
-                f"You reached **level {new_level}** on **{message.guild.name}**!\n"
-                f"**Before** · {new_level - 1}\n"
-                f"**Server** · {message.guild.name} (`{message.guild.id}`)"
-            ),
+            title=f"🎉 Level Up! You're now level {new_level}",
+            description=f"*{random.choice(LEVEL_UP_FLAVOR)}*\n\n**Server:** {message.guild.name}",
             color=discord.Color.blurple(),
         )
+        embed.set_thumbnail(url=message.author.display_avatar.url)
         embed.add_field(name="\u200b", value="*Made by **Mercyy** for **Friends***", inline=False)
 
         try:
