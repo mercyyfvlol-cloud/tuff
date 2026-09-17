@@ -69,6 +69,7 @@ HELP_SECTIONS = {
     ],
     "🛡️ Moderation (mod role or matching Discord permission required)": [
         "/warn, /warnings, /clearwarnings, /removewarning",
+        "Reaching 3/5/10/15 total warnings auto-times-out the member (10m/1h/12h/1d) -- escalates automatically, no extra command needed",
         "/modsetnick <member> [nickname] — set or clear a member's nickname",
         "/kick, /ban, /unban",
         "/timeout <member> <minutes|permanent>, /untimeout — permanent auto-renews every 28 days (Discord's own hard cap per timeout) until removed",
