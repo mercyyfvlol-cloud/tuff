@@ -35,9 +35,7 @@ STARTUP_EXTENSIONS = (
     "leveling",
     "moderation",
     "voice",
-    # "eventlogs",  # TEMPORARILY DISABLED -- this file is missing from the current codebase copy
-    # (never uploaded to me either). Its /snipe command and any join/leave/edit/delete logging
-    # are offline until you find/restore eventlogs.py and uncomment this line. See chat for details.
+    "eventlogs",
     "giveaways",
     "emoji",
     "autorole",
