@@ -24,6 +24,7 @@ HELP_SECTIONS = {
         "/resetxp — [admin] wipe XP/levels for the whole server",
         "/xpboostpanel — [admin] post the daily XP boost button in this channel",
         "⚡ Claim on that panel gives 5x XP for 1 hour, once every 24 hours -- tracked separately per person",
+        "💜 Server boosters automatically get 3x XP on every message, no setup needed -- stacks with the daily boost above",
     ],
     "🎉 Giveaways": [
         "/giveaway start <prize> <duration> <winners> — [admin] e.g. duration `10m`, `2h`, `1d`",
