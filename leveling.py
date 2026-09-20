@@ -46,6 +46,7 @@ LEVEL_COLORS = {
 XP_MIN, XP_MAX = 8, 15        # xp awarded per eligible message (was 15-25)
 XP_COOLDOWN_SECONDS = 90      # per-user cooldown to prevent spam-leveling (was 60)
 XP_BOOST_MULTIPLIER = 5       # applied when db.has_active_xp_boost() is true -- keep in sync with BOOST_MULTIPLIER in xpboost.py
+BOOSTER_XP_MULTIPLIER = 3     # applied whenever the author is currently boosting the server -- stacks with XP_BOOST_MULTIPLIER above
 
 # No XP is granted for messages in these channels -- e.g. spam67.py's target
 # channel, where messages aren't genuine chat activity.
@@ -138,6 +139,8 @@ class Leveling(commands.Cog):
         gained = random.randint(XP_MIN, XP_MAX)
         if db.has_active_xp_boost(message.guild.id, message.author.id):
             gained *= XP_BOOST_MULTIPLIER
+        if message.author.premium_since is not None:  # currently boosting the server
+            gained *= BOOSTER_XP_MULTIPLIER
         xp += gained
         new_level = level_from_xp(xp)
         db.set_user_xp(message.guild.id, message.author.id, xp, new_level)
@@ -208,6 +211,8 @@ class Leveling(commands.Cog):
             if remaining.total_seconds() > 0:
                 minutes = max(1, int(remaining.total_seconds() // 60))
                 description = f"⚡ **{XP_BOOST_MULTIPLIER}x XP active** -- {minutes}m left\n\n" + description
+        if target.premium_since is not None:
+            description = f"💜 **{BOOSTER_XP_MULTIPLIER}x XP** -- server booster perk\n\n" + description
 
         embed = discord.Embed(
             title=f"{target.display_name}'s Rank",
