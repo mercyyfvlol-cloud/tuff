@@ -8,7 +8,60 @@ import database as db
 from logsutil import send_log
 from permissions import SUPER_USER_ID
 
+
+class FuzzyMember(commands.MemberConverter):
+    """Same as Discord's default member lookup (mention, ID, exact
+    name#tag, exact username/nickname/display name) but falls back to a
+    case-insensitive SUBSTRING match across the server's members if none
+    of that finds anyone -- e.g. "?ban jimmy" matches a member named
+    "Jimmy_2010" without needing an @ mention or the exact full name."""
+
+    async def convert(self, ctx: commands.Context, argument: str) -> discord.Member:
+        try:
+            return await super().convert(ctx, argument)
+        except commands.MemberNotFound:
+            pass
+
+        needle = argument.lower()
+        matches = [
+            m for m in ctx.guild.members
+            if needle in m.name.lower()
+            or (m.nick and needle in m.nick.lower())
+            or (m.global_name and needle in m.global_name.lower())
+        ]
+        if not matches:
+            raise commands.MemberNotFound(argument)
+        if len(matches) > 1:
+            shown = ", ".join(str(m) for m in matches[:5])
+            more = f" (+{len(matches) - 5} more)" if len(matches) > 5 else ""
+            raise commands.BadArgument(f"\"{argument}\" matches more than one person: {shown}{more} -- be more specific or @ mention them.")
+        return matches[0]
+
 INDEFINITE_TIMEOUT_RENEWAL_HOURS = 12  # re-applies a fresh 28-day timeout this often -- keeps it always far from actually expiring
+
+# Reaching one of these warning counts (exactly, not "at least") auto-times-out
+# the member for the paired duration. Adjust freely -- just keep everything
+# well under Discord's 28-day timeout cap.
+WARNING_TIMEOUT_THRESHOLDS = {
+    3: timedelta(minutes=10),
+    5: timedelta(hours=1),
+    10: timedelta(hours=12),
+    15: timedelta(days=1),
+}
+
+
+def _format_timedelta(delta: timedelta) -> str:
+    total_minutes = int(delta.total_seconds() // 60)
+    days, rem_minutes = divmod(total_minutes, 1440)
+    hours, minutes = divmod(rem_minutes, 60)
+    parts = []
+    if days:
+        parts.append(f"{days} day{'s' if days != 1 else ''}")
+    if hours:
+        parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+    if minutes:
+        parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+    return " ".join(parts) or "0 minutes"
 
 # ---------------------------------------------------------------------------
 # Rank hierarchy: Lily > Owner > Co-Owner > Administrator > Moderator > everyone else.
@@ -207,6 +260,38 @@ class Moderation(commands.Cog):
     async def _before_renew_indefinite_timeouts(self):
         await self.bot.wait_until_ready()
 
+    async def _maybe_auto_timeout(self, guild: discord.Guild, member: discord.Member, warning_count: int):
+        """Fires when warning_count lands exactly on one of WARNING_TIMEOUT_THRESHOLDS."""
+        duration = WARNING_TIMEOUT_THRESHOLDS.get(warning_count)
+        if duration is None:
+            return
+
+        me = guild.me
+        if member.id == me.id or member.top_role >= me.top_role:
+            return  # same hard Discord limit as any other moderation action -- nothing we can do about this one
+
+        until = discord.utils.utcnow() + duration
+        try:
+            await member.timeout(until, reason=f"Auto-timeout: reached {warning_count} warnings")
+        except discord.Forbidden:
+            return  # e.g. they have Administrator -- Discord blocks timing them out regardless of role position
+
+        duration_text = _format_timedelta(duration)
+        try:
+            await member.send(
+                f"You've been automatically timed out in **{guild.name}** for reaching **{warning_count} warnings**.\n"
+                f"Duration: {duration_text}"
+            )
+        except discord.Forbidden:
+            pass
+
+        embed = mod_embed(
+            "⏱️ Auto-Timeout Triggered",
+            f"{member.mention} reached **{warning_count} warnings** and was automatically timed out for **{duration_text}**.",
+            color=discord.Color.dark_orange(),
+        )
+        await send_log(self.bot, embed)
+
     async def _log_and_confirm(self, interaction: discord.Interaction, embed: discord.Embed):
         """Mod actions no longer post in the regular channel -- the full
         embed goes to the logs channel, and the moderator gets a short
@@ -247,6 +332,7 @@ class Moderation(commands.Cog):
             await member.send(embed=warning_dm_embed(interaction.guild, interaction.user, reason, warning_id))
         except discord.Forbidden:
             pass
+        await self._maybe_auto_timeout(interaction.guild, member, count)
 
     @app_commands.command(name="warnings", description="Pull up someone's warning history")
     @app_commands.describe(member="Who")
@@ -495,7 +581,7 @@ class Moderation(commands.Cog):
             pass
 
     @commands.command(name="kick")
-    async def kick_text(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
+    async def kick_text(self, ctx: commands.Context, member: FuzzyMember, *, reason: str = "No reason provided"):
         if not self._has_access(ctx.author, kick_members=True):
             await self._deny(ctx, "You don't have permission to do that.")
             return
@@ -509,7 +595,7 @@ class Moderation(commands.Cog):
         await self._reply_and_log(ctx, mod_embed("👢 Member Kicked", f"{member.mention} was kicked.\n**Reason:** {reason}"))
 
     @commands.command(name="modsetnick")
-    async def modsetnick_text(self, ctx: commands.Context, member: discord.Member, *, nickname: str = None):
+    async def modsetnick_text(self, ctx: commands.Context, member: FuzzyMember, *, nickname: str = None):
         if not self._has_access(ctx.author, manage_nicknames=True):
             await self._deny(ctx, "You don't have permission to do that.")
             return
@@ -531,7 +617,7 @@ class Moderation(commands.Cog):
         await self._reply_and_log(ctx, mod_embed("📝 Nickname Changed", desc))
 
     @commands.command(name="ban")
-    async def ban_text(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
+    async def ban_text(self, ctx: commands.Context, member: FuzzyMember, *, reason: str = "No reason provided"):
         if not self._has_access(ctx.author, ban_members=True):
             await self._deny(ctx, "You don't have permission to ban members.")
             return
@@ -558,7 +644,7 @@ class Moderation(commands.Cog):
         await self._reply_and_log(ctx, mod_embed("🔓 Member Unbanned", f"Unbanned **{user}**."))
 
     @commands.command(name="timeout")
-    async def timeout_text(self, ctx: commands.Context, member: discord.Member, minutes: str, *, reason: str = "No reason provided"):
+    async def timeout_text(self, ctx: commands.Context, member: FuzzyMember, minutes: str, *, reason: str = "No reason provided"):
         if not self._has_access(ctx.author, moderate_members=True):
             await self._deny(ctx, "You don't have permission to do that.")
             return
@@ -592,7 +678,7 @@ class Moderation(commands.Cog):
         await self._reply_and_log(ctx, mod_embed("🔇 Member Timed Out", f"{member.mention} is timed out {duration_text}.\n**Reason:** {reason}"))
 
     @commands.command(name="untimeout")
-    async def untimeout_text(self, ctx: commands.Context, member: discord.Member):
+    async def untimeout_text(self, ctx: commands.Context, member: FuzzyMember):
         if not self._has_access(ctx.author, moderate_members=True):
             await self._deny(ctx, "You don't have permission to do that.")
             return
@@ -603,7 +689,7 @@ class Moderation(commands.Cog):
         await self._reply_and_log(ctx, mod_embed("🔊 Timeout Removed", f"Removed timeout for {member.mention}."))
 
     @commands.command(name="warn")
-    async def warn_text(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
+    async def warn_text(self, ctx: commands.Context, member: FuzzyMember, *, reason: str = "No reason provided"):
         if not self._has_access(ctx.author, moderate_members=True):
             await self._deny(ctx, "You don't have permission to do that.")
             return
@@ -616,9 +702,10 @@ class Moderation(commands.Cog):
             await member.send(embed=warning_dm_embed(ctx.guild, ctx.author, reason, warning_id))
         except discord.Forbidden:
             pass
+        await self._maybe_auto_timeout(ctx.guild, member, count)
 
     @commands.command(name="warnings")
-    async def warnings_text(self, ctx: commands.Context, member: discord.Member):
+    async def warnings_text(self, ctx: commands.Context, member: FuzzyMember):
         if not self._has_access(ctx.author, moderate_members=True):
             await self._deny(ctx, "You don't have permission to do that.")
             return
@@ -630,7 +717,7 @@ class Moderation(commands.Cog):
         await ctx.reply(embed=mod_embed(f"Warnings for {member.display_name}", "\n".join(lines)), mention_author=False)
 
     @commands.command(name="clearwarnings")
-    async def clearwarnings_text(self, ctx: commands.Context, member: discord.Member):
+    async def clearwarnings_text(self, ctx: commands.Context, member: FuzzyMember):
         if not self._has_access(ctx.author, manage_guild=True):
             await self._deny(ctx, "You don't have permission to do that.")
             return
