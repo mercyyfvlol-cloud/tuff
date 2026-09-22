@@ -47,6 +47,7 @@ HELP_SECTIONS = {
         "/snipe — show the last deleted message in this channel",
         "/uptime — see how long the bot has been online",
         "/afk [reason] — mark yourself AFK, clears automatically when you next talk",
+        "/removeafk <member> — [staff] manually clear someone else's AFK status",
         "/testboost [member] — [admin] preview the boost thank-you message without needing a real boost",
         "/clearme [amount] — delete your own recent messages in this channel (scans up to `amount`, default 100, max 500)",
         "/autorole set <role> — [admin] auto-assign a role to new members",
