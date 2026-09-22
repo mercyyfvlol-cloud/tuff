@@ -105,9 +105,43 @@ class AFK(commands.Cog):
         text = await self._go_afk(ctx.author, reason)
         await ctx.reply(text, mention_author=False, allowed_mentions=discord.AllowedMentions.none())
 
+    @app_commands.command(name="removeafk", description="[Staff] Manually clear someone else's AFK status")
+    @app_commands.describe(member="Who to clear AFK for")
+    @app_commands.checks.has_permissions(manage_nicknames=True)
+    async def removeafk(self, interaction: discord.Interaction, member: discord.Member):
+        row = db.get_afk(interaction.guild_id, member.id)
+        if row is None:
+            await interaction.response.send_message(f"{member.mention} isn't AFK.", ephemeral=True)
+            return
+        await self._clear_afk(member, row)
+        await interaction.response.send_message(f"✅ Cleared AFK for {member.mention}.", allowed_mentions=discord.AllowedMentions.none())
+
+    @commands.command(name="removeafk")
+    @commands.has_permissions(manage_nicknames=True)
+    async def removeafk_text(self, ctx: commands.Context, member: discord.Member):
+        row = db.get_afk(ctx.guild.id, member.id)
+        if row is None:
+            await ctx.reply(f"{member.mention} isn't AFK.", mention_author=False, allowed_mentions=discord.AllowedMentions.none())
+            return
+        await self._clear_afk(member, row)
+        await ctx.reply(f"✅ Cleared AFK for {member.mention}.", mention_author=False, allowed_mentions=discord.AllowedMentions.none())
+
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if not interaction.response.is_done():
-            await interaction.response.send_message(f"Error: {error}", ephemeral=True)
+        if isinstance(error, app_commands.MissingPermissions):
+            await interaction.response.send_message("You need the Manage Nicknames permission to do that.", ephemeral=True)
+        else:
+            if not interaction.response.is_done():
+                await interaction.response.send_message(f"Error: {error}", ephemeral=True)
+
+    async def cog_command_error(self, ctx: commands.Context, error: commands.CommandError):
+        if isinstance(error, commands.MissingPermissions):
+            await ctx.reply("You need the Manage Nicknames permission to do that.", mention_author=False)
+        elif isinstance(error, commands.MemberNotFound):
+            await ctx.reply("Couldn't find that member.", mention_author=False)
+        elif isinstance(error, commands.MissingRequiredArgument):
+            await ctx.reply(f"Usage: `{ctx.prefix}removeafk <member>`", mention_author=False)
+        else:
+            print(f"AFK prefix command error: {error}")
 
 
 async def setup(bot: commands.Bot):
